@@ -30,10 +30,6 @@ func NewProspectorLog(p *Prospector) (*ProspectorLog, error) {
 		config:     p.config,
 	}
 
-	if len(p.config.Paths) == 0 {
-		return nil, fmt.Errorf("each prospector must have at least one path defined")
-	}
-
 	return prospectorer, nil
 }
 
@@ -95,7 +91,7 @@ func (p *ProspectorLog) Run() {
 	if p.config.CleanRemoved {
 		for _, state := range p.Prospector.states.GetStates() {
 			// os.Stat will return an error in case the file does not exist
-			_, err := os.Stat(state.Source)
+			stat, err := os.Stat(state.Source)
 			if err != nil {
 				// Only clean up files where state is Finished
 				if state.Finished {
@@ -108,7 +104,31 @@ func (p *ProspectorLog) Run() {
 				} else {
 					logp.Debug("prospector", "State for file not removed because not finished: %s", state.Source)
 				}
+			}else {
+
+					// Check if existing source on disk and state are the same. Remove if not the case.
+					newState := file.NewState(stat, state.Source)
+					//logp.Debug("prospector curState source:%s,inode:%d,newState source:%s,inode:%d",state.Source,state.FileStateOS.Inode,newState.Source,newState.FileStateOS.Inode);
+					if !newState.FileStateOS.IsSame(state.FileStateOS)&&state.TTL<0{
+							// expire after 1 min
+							//state.TTL = 60000000000
+							//expire after 30 min
+						       if(p.config.CleanInactive>300000000000){
+							  state.TTL=p.config.CleanInactive*6
+						       }else {
+							  state.TTL=p.config.CleanInactive
+						       }
+							err := p.Prospector.updateState(input.NewEvent(state))
+							if err != nil {
+								logp.Err("File mark expire state update error: %s", err)
+							}
+							logp.Info("prospector mark expire state  for  source:%s,inode:%d success",state.Source,state.FileStateOS)
+				}
+
 			}
+
+
+
 		}
 	}
 }
